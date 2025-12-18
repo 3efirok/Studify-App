@@ -8,6 +8,7 @@ import ErrorState from '../components/ErrorState';
 import { colors, spacing, typography } from '../theme';
 import { useSessionResult, useSessions } from '../query/sessions';
 import { SessionHistoryItem } from '../types/api';
+import { computeProgressPercent } from '../utils/percent';
 
 const SessionRow = ({
   session,
@@ -43,6 +44,13 @@ const SessionRow = ({
 
   const stats = canOpen && result && (result as any).stats ? (result as any).stats : null;
   const showStats = !!stats && Number.isFinite(Number(stats.totalAnswered));
+  const percent = showStats
+    ? computeProgressPercent({
+        progressPercent: (stats as any).progressPercent,
+        correct: (stats as any).correctCount,
+        total: (stats as any).totalAnswered,
+      })
+    : null;
 
   const correctCount = (session as any).correctCount;
   const totalCards = (session as any).totalCards;
@@ -81,7 +89,7 @@ const SessionRow = ({
               ? '...'
               : showStats
                 ? `${String(stats.correctCount)} / ${String(stats.totalAnswered)} • ${String(
-                    stats.progressPercent
+                    percent ?? 0
                   )}%`
                 : '—'}
           </Text>

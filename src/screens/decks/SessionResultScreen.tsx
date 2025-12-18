@@ -9,6 +9,7 @@ import { colors, spacing, typography } from '../../theme';
 import { DeckStackParamList } from '../../navigation/types';
 import { useSessionResult } from '../../query/sessions';
 import { SessionResultFlash, SessionResultTest, SessionTestAnswer } from '../../types/api';
+import { computeProgressPercent } from '../../utils/percent';
 
 type Props = NativeStackScreenProps<DeckStackParamList, 'SessionResult'>;
 
@@ -49,7 +50,11 @@ export const SessionResultScreen = ({ route }: Props) => {
   if (isFlashResult(data)) {
     const correct = data.stats.correctCount;
     const total = data.stats.totalAnswered;
-    const percent = Math.round(data.stats.progressPercent ?? (total ? (correct / total) * 100 : 0));
+    const percent = computeProgressPercent({
+      progressPercent: data.stats.progressPercent,
+      correct,
+      total,
+    });
     const mistakes = data.items.filter((item) => !item.isCorrect);
 
     return (
@@ -98,8 +103,11 @@ export const SessionResultScreen = ({ route }: Props) => {
 
   const correct = data.stats?.correctCount ?? answers.filter((a) => a.isCorrect).length;
   const total = data.stats?.totalAnswered ?? answers.length;
-  const percent =
-    data.stats?.progressPercent ?? (total > 0 ? Math.round((correct / total) * 100) : 0);
+  const percent = computeProgressPercent({
+    progressPercent: data.stats?.progressPercent,
+    correct,
+    total,
+  });
   const mistakes = answers.filter((a) => a.isCorrect === false);
 
   return (
