@@ -2,7 +2,7 @@
 
 Dark, glassy React Native client for Studify API.
 
-Українська версія: `README.uk.md`
+Українська версія: [README.uk.md](README.uk.md)
 
 ## Getting started
 
@@ -12,6 +12,16 @@ npx expo start -c
 ```
 
 Choose `i`/`a`/`w` for iOS/Android/Web or scan the QR code in Expo Go.
+
+## Troubleshooting: “Could not connect to development server”
+
+This usually means Metro (port `8081`) isn’t reachable from your device/simulator.
+
+- Make sure the dev server is running: `npm run start` (or `npx expo start`).
+- Ensure your phone and computer are on the same Wi‑Fi (no VPN / guest network / AP isolation).
+- Windows/macOS firewall may block the connection — allow Node/Expo and ports `8081` (Metro) and `19000/19001` (Expo).
+- If you’re running the project inside WSL2/Docker, LAN discovery can break — use `npm run start:tunnel` or run Expo from the host OS.
+- For iOS simulator / local web you can try `npm run start:localhost`.
 
 ## Environment
 

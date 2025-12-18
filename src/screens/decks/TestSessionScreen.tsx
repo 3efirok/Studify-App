@@ -16,6 +16,11 @@ import {
 } from '../../query/sessions';
 import { FlashQuestion, Question, QuestionOption } from '../../types/api';
 import { getErrorMessage } from '../../api/client';
+import {
+  resyncNextFlashQuestion,
+  resyncNextTestQuestion,
+  shouldAttemptSessionResync,
+} from '../../utils/sessionResync';
 
 type Props = NativeStackScreenProps<DeckStackParamList, 'Session'>;
 
@@ -32,6 +37,7 @@ export const TestSessionScreen = ({ route, navigation }: Props) => {
   const [selectedFlashIndex, setSelectedFlashIndex] = useState<number | null>(null);
   const [answerText, setAnswerText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
 
   const isFlash = useMemo(
     () => currentQuestion != null && 'kind' in currentQuestion && currentQuestion.kind === 'FLASH',
@@ -49,7 +55,7 @@ export const TestSessionScreen = ({ route, navigation }: Props) => {
           shareCode,
           optionsCount: mode === 'TEST_FLASH' ? optionsCount : undefined,
         });
-        setSessionId(data.session.id);
+        setSessionId(String(data.session.id));
         if ('nextQuestion' in data) {
           setCurrentQuestion(data.nextQuestion);
         }
@@ -74,6 +80,7 @@ export const TestSessionScreen = ({ route, navigation }: Props) => {
 
   const handleSubmit = async () => {
     if (!currentQuestion || !sessionId) return;
+    if (resyncing) return;
     if (isFlash && selectedFlashIndex === null) {
       setError('Оберіть відповідь');
       return;
@@ -91,9 +98,12 @@ export const TestSessionScreen = ({ route, navigation }: Props) => {
 
     try {
       if (isFlash) {
+        const selectedOptionText =
+          selectedFlashIndex == null ? undefined : currentQuestion.options[selectedFlashIndex];
         const result = await flashAnswerMutation.mutateAsync({
           cardId: currentQuestion.cardId,
           selectedIndex: selectedFlashIndex ?? 0,
+          selectedOptionText,
         });
         if (result.finished) {
           navigation.replace('SessionResult', { sessionId: sessionId ?? '' });
@@ -104,8 +114,10 @@ export const TestSessionScreen = ({ route, navigation }: Props) => {
           setAnswerText('');
         }
       } else {
+        const selectedOptionId = selectedOptions[0];
         const result = await answerMutation.mutateAsync({
           questionId: currentQuestion.id,
+          selectedOptionId: isText ? undefined : selectedOptionId,
           selectedOptionIds: isText ? undefined : selectedOptions,
           answerText: isText ? answerText.trim() : undefined,
         });
@@ -118,7 +130,51 @@ export const TestSessionScreen = ({ route, navigation }: Props) => {
         }
       }
     } catch (err) {
-      setError(getErrorMessage(err));
+      const message = getErrorMessage(err);
+      if (shouldAttemptSessionResync(message)) {
+        try {
+          setResyncing(true);
+          setError('Синхронізуємо прогрес…');
+          if (isFlash) {
+            const { nextQuestion, finished } = await resyncNextFlashQuestion(sessionId);
+            if (finished) {
+              navigation.replace('SessionResult', { sessionId });
+              return;
+            }
+            if (nextQuestion) {
+              setCurrentQuestion(nextQuestion);
+              setSelectedFlashIndex(null);
+              setSelectedOptions([]);
+              setAnswerText('');
+              setError(null);
+              return;
+            }
+          } else {
+            const { nextQuestion, finished } = await resyncNextTestQuestion({
+              sessionId,
+              deckId,
+              shareCode,
+            });
+            if (finished) {
+              navigation.replace('SessionResult', { sessionId });
+              return;
+            }
+            if (nextQuestion) {
+              setCurrentQuestion(nextQuestion);
+              setSelectedOptions([]);
+              setAnswerText('');
+              setError(null);
+              return;
+            }
+          }
+        } catch {
+          // fall through
+        } finally {
+          setResyncing(false);
+        }
+      }
+
+      setError(message);
     }
   };
 
@@ -221,12 +277,14 @@ export const TestSessionScreen = ({ route, navigation }: Props) => {
 
           <PrimaryButton
             label={
-              answerMutation.isPending || flashAnswerMutation.isPending
-                ? 'Відправляємо...'
-                : 'Відповісти'
+              resyncing
+                ? 'Синхронізуємо...'
+                : answerMutation.isPending || flashAnswerMutation.isPending
+                  ? 'Відправляємо...'
+                  : 'Відповісти'
             }
             onPress={handleSubmit}
-            loading={answerMutation.isPending || flashAnswerMutation.isPending}
+            loading={answerMutation.isPending || flashAnswerMutation.isPending || resyncing}
             style={{ marginTop: spacing.lg }}
           />
         </GlassCard>

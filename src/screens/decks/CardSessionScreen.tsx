@@ -32,7 +32,7 @@ export const CardSessionScreen = ({ route, navigation }: Props) => {
           shareCode,
           onlyUnknown,
         });
-        setSessionId(data.session.id);
+        setSessionId(String(data.session.id));
         if ('nextCard' in data) {
           setCurrentCard(data.nextCard);
         }

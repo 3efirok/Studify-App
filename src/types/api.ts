@@ -101,12 +101,19 @@ export type Deck = {
 export type SessionMode = 'CARD' | 'TEST' | 'TEST_FLASH';
 
 export type Session = {
-  id: string;
-  deckId: string;
+  id: string | number;
+  deckId: string | number;
   mode: SessionMode;
-  shareCode?: string | null;
-  createdAt: string;
+  startedAt: string;
+  /** Backward-compat alias used by older client code. */
+  createdAt?: string;
   finishedAt?: string | null;
+  totalCards?: number | null;
+  correctCount?: number | null;
+};
+
+export type SessionHistoryItem = Session & {
+  deck?: { id: string | number; title: string };
 };
 
 export type SessionStartPayload = {
@@ -128,6 +135,10 @@ export type TestSessionStartResponse = {
 
 export type FlashQuestion = {
   kind: 'FLASH';
+  /** Some backends expose a separate step/question id. */
+  questionId?: string;
+  /** Alternative naming used by some backends. */
+  stepId?: string;
   cardId: string | number;
   prompt: string;
   options: string[];
@@ -156,6 +167,8 @@ export type CardMarkResponse = {
 
 export type TestAnswerPayload = {
   questionId: string;
+  /** For single-choice APIs that expect a singular value. */
+  selectedOptionId?: string;
   selectedOptionIds?: string[];
   answerText?: string;
 };
@@ -168,15 +181,13 @@ export type TestAnswerResponse = {
   };
   nextQuestion?: Question;
   finished?: boolean;
-  stats?: {
-    correct: number;
-    total: number;
-    };
+  stats?: { totalAnswered: number; correctCount: number; progressPercent: number };
 };
 
 export type FlashAnswerPayload = {
   cardId: string | number;
-  selectedIndex: number;
+  selectedIndex?: number;
+  selectedOptionText?: string;
 };
 
 export type FlashAnswerResponse = {
@@ -186,17 +197,21 @@ export type FlashAnswerResponse = {
   stats: { totalAnswered: number; correctCount: number; progressPercent: number };
 };
 
-export type SessionResult = {
-  session: Session;
-  testAnswers?: Array<{
-    questionId: string;
-    isCorrect?: boolean;
-    selectedOptionIds?: string[];
-    correctOptionIds?: string[];
-    questionTitle?: string;
-    correctAnswerText?: string;
-  }>;
-  mode?: SessionMode;
+export type SessionTestAnswer = {
+  id?: string | number;
+  sessionId?: string | number;
+  questionId: string | number;
+  isCorrect?: boolean;
+  selectedOptionIds?: Array<string | number> | null;
+  answerText?: string | null;
+  answeredAt?: string;
+  question?: Question;
+};
+
+export type SessionResultTest = {
+  mode: 'TEST';
+  session: Session & { testAnswers: SessionTestAnswer[] };
+  stats: { totalAnswered: number; correctCount: number; progressPercent: number };
 };
 
 export type SessionResultFlash = {
@@ -208,13 +223,13 @@ export type SessionResultFlash = {
     cardId: string | number;
     prompt: string;
     options: string[];
-    correctOption: string;
-    selectedOption?: string;
+    correctOption: string | null;
+    selectedOption?: string | null;
     isCorrect: boolean;
   }>;
 };
 
-export type SessionResultResponse = SessionResult | SessionResultFlash;
+export type SessionResultResponse = SessionResultTest | SessionResultFlash;
 
 export type ApiError = {
   message: string;

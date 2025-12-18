@@ -68,7 +68,7 @@ export const SessionStartScreen = ({ route, navigation }: Props) => {
             : undefined;
         navigation.replace('FlashTestSession', {
           deckId,
-          sessionId: data.session.id,
+          sessionId: String(data.session.id),
           shareCode: effectiveShareCode || undefined,
           initialQuestion,
         });

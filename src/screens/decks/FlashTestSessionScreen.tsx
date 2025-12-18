@@ -13,6 +13,10 @@ import { FlashQuestion } from '../../types/api';
 import { getErrorMessage } from '../../api/client';
 import { useToast } from '../../components/Toast';
 import { hapticsWarning } from '../../utils/haptics';
+import {
+  resyncNextFlashQuestion,
+  shouldAttemptSessionResync,
+} from '../../utils/sessionResync';
 
 type Props = NativeStackScreenProps<DeckStackParamList, 'FlashTestSession'>;
 
@@ -23,6 +27,7 @@ export const FlashTestSessionScreen = ({ route, navigation }: Props) => {
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
   const answerMutation = useSubmitFlashAnswer(sessionId);
   const toast = useToast();
 
@@ -40,6 +45,7 @@ export const FlashTestSessionScreen = ({ route, navigation }: Props) => {
 
   const handleSubmit = async () => {
     if (!currentQuestion) return;
+    if (resyncing) return;
     if (selectedIndex === null) {
       setError('Оберіть варіант');
       hapticsWarning();
@@ -47,9 +53,11 @@ export const FlashTestSessionScreen = ({ route, navigation }: Props) => {
     }
     setError(null);
     try {
+      const selectedOptionText = currentQuestion.options[selectedIndex];
       const res = await answerMutation.mutateAsync({
         cardId: currentQuestion.cardId,
         selectedIndex,
+        selectedOptionText,
       });
       if (res.finished) {
         navigation.replace('SessionResult', { sessionId });
@@ -61,6 +69,28 @@ export const FlashTestSessionScreen = ({ route, navigation }: Props) => {
       }
     } catch (err) {
       const message = getErrorMessage(err);
+      if (shouldAttemptSessionResync(message)) {
+        try {
+          setResyncing(true);
+          setError('Синхронізуємо прогрес…');
+          const { nextQuestion, finished } = await resyncNextFlashQuestion(sessionId);
+          if (finished) {
+            navigation.replace('SessionResult', { sessionId });
+            return;
+          }
+          if (nextQuestion) {
+            setCurrentQuestion(nextQuestion);
+            setSelectedIndex(null);
+            setError(null);
+            return;
+          }
+        } catch {
+          // ignore and show original error
+        } finally {
+          setResyncing(false);
+        }
+      }
+
       setError(message);
       toast.show(message, 'error');
       hapticsWarning();
@@ -112,10 +142,16 @@ export const FlashTestSessionScreen = ({ route, navigation }: Props) => {
         </View>
 
         <PrimaryButton
-          label={answerMutation.isPending ? 'Відправляємо...' : 'Відповісти'}
+          label={
+            resyncing
+              ? 'Синхронізуємо...'
+              : answerMutation.isPending
+                ? 'Відправляємо...'
+                : 'Відповісти'
+          }
           onPress={handleSubmit}
-          loading={answerMutation.isPending}
-          disabled={answerMutation.isPending}
+          loading={answerMutation.isPending || resyncing}
+          disabled={answerMutation.isPending || resyncing}
           style={{ marginTop: spacing.lg }}
         />
       </GlassCard>

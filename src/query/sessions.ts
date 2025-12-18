@@ -1,8 +1,9 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cardMark,
   finishSession,
   getSessionResult,
+  listSessions,
   startSession,
   submitFlashAnswer,
   submitTestAnswer,
@@ -13,10 +14,17 @@ import {
   SessionStartPayload,
   TestAnswerPayload,
 } from '../types/api';
+import { queryKeys } from './keys';
 
 export const useStartSession = (deckId: string) =>
   useMutation({
     mutationFn: (payload: SessionStartPayload) => startSession(deckId, payload),
+  });
+
+export const useSessions = (deckId?: string) =>
+  useQuery({
+    queryKey: queryKeys.sessions(deckId),
+    queryFn: () => listSessions(deckId),
   });
 
 export const useCardMark = (sessionId: string) =>
@@ -29,21 +37,26 @@ export const useSubmitTestAnswer = (sessionId: string) =>
     mutationFn: (payload: TestAnswerPayload) => submitTestAnswer(sessionId, payload),
   });
 
-export const useSubmitFlashAnswer = (sessionId: string) =>
-  useMutation({
+export const useSubmitFlashAnswer = (sessionId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: (payload: FlashAnswerPayload) => submitFlashAnswer(sessionId, payload),
     onSuccess: (data) => {
       if (data.finished) {
         queryClient.invalidateQueries({
-          queryKey: ['session-result', sessionId],
+          queryKey: queryKeys.sessionResult(sessionId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(),
         });
       }
     },
   });
+};
 
 export const useSessionResult = (sessionId: string | undefined) =>
   useQuery({
-    queryKey: sessionId ? ['session-result', sessionId] : ['session-result', 'missing'],
+    queryKey: sessionId ? queryKeys.sessionResult(sessionId) : ['session-result', 'missing'],
     queryFn: () => {
       if (!sessionId) throw new Error('sessionId is required');
       return getSessionResult(sessionId);
@@ -51,7 +64,12 @@ export const useSessionResult = (sessionId: string | undefined) =>
     enabled: !!sessionId,
   });
 
-export const useFinishSession = (sessionId: string) =>
-  useMutation({
+export const useFinishSession = (sessionId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: () => finishSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessions() });
+    },
   });
+};

@@ -11,6 +11,16 @@ npx expo start -c
 
 Далі обери `i`/`a`/`w` для iOS/Android/Web або відскануй QR код у Expo Go.
 
+## Вирішення проблеми: “Could not connect to development server”
+
+Зазвичай це означає, що Metro (порт `8081`) недоступний для пристрою/симулятора.
+
+- Переконайся, що dev server запущений: `npm run start` (або `npx expo start`).
+- Телефон і компʼютер мають бути в одній Wi‑Fi мережі (без VPN / guest network / AP isolation).
+- Firewall у Windows/macOS може блокувати підключення — дозволь Node/Expo та порти `8081` (Metro) і `19000/19001` (Expo).
+- Якщо запускаєш проєкт у WSL2/Docker — LAN часто ламається; спробуй `npm run start:tunnel` або запускай Expo з хостової ОС.
+- Для iOS симулятора / web спробуй `npm run start:localhost`.
+
 ## Змінні середовища
 
 - Скопіюй `.env.example` в `.env` та задай `EXPO_PUBLIC_API_URL`.
@@ -44,4 +54,3 @@ npx expo start -c
 - `src/screens` — auth, decks, sessions, profile flows.
 - `src/navigation` — stacks/tabs з типізованими параметрами.
 - `src/utils` — helpers для env/haptics.
-

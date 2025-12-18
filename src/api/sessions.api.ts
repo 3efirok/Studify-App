@@ -6,6 +6,7 @@ import {
   FlashAnswerPayload,
   FlashAnswerResponse,
   FlashSessionStartResponse,
+  SessionHistoryItem,
   Session,
   SessionStartPayload,
   SessionResultResponse,
@@ -47,6 +48,13 @@ export const getSessionResult = async (sessionId: string) => {
   const { data } = await api.get<SessionResultResponse>(
     `/api/sessions/${sessionId}/result`
   );
+  return data;
+};
+
+export const listSessions = async (deckId?: string) => {
+  const { data } = await api.get<SessionHistoryItem[]>('/api/sessions', {
+    params: deckId ? { deckId } : undefined,
+  });
   return data;
 };
 

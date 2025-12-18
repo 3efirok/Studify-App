@@ -8,7 +8,7 @@ import ErrorState from '../../components/ErrorState';
 import { colors, spacing, typography } from '../../theme';
 import { DeckStackParamList } from '../../navigation/types';
 import { useSessionResult } from '../../query/sessions';
-import { SessionResultFlash } from '../../types/api';
+import { SessionResultFlash, SessionResultTest, SessionTestAnswer } from '../../types/api';
 
 type Props = NativeStackScreenProps<DeckStackParamList, 'SessionResult'>;
 
@@ -18,6 +18,20 @@ export const SessionResultScreen = ({ route }: Props) => {
 
   const isFlashResult = (res: unknown): res is SessionResultFlash => {
     return !!res && typeof res === 'object' && 'mode' in res && (res as any).mode === 'TEST_FLASH';
+  };
+
+  const isTestResult = (res: unknown): res is SessionResultTest => {
+    return !!res && typeof res === 'object' && 'mode' in res && (res as any).mode === 'TEST';
+  };
+
+  const normalizeId = (value: unknown) => {
+    if (typeof value === 'string' || typeof value === 'number') return value;
+    return String(value);
+  };
+
+  const normalizeSelectedIds = (value: unknown): Array<string | number> => {
+    if (!Array.isArray(value)) return [];
+    return value.filter((v) => typeof v === 'string' || typeof v === 'number');
   };
 
   if (isLoading) {
@@ -74,10 +88,19 @@ export const SessionResultScreen = ({ route }: Props) => {
     );
   }
 
-  const correct = data.testAnswers?.filter((a) => a.isCorrect)?.length ?? 0;
-  const total = data.testAnswers?.length ?? 0;
-  const percent = total > 0 ? Math.round((correct / total) * 100) : 0;
-  const mistakes = data.testAnswers?.filter((a) => a.isCorrect === false) ?? [];
+  if (!isTestResult(data)) {
+    return <ErrorState message="Невідомий формат результату" onRetry={refetch} />;
+  }
+
+  const answers: SessionTestAnswer[] = Array.isArray((data as any).session?.testAnswers)
+    ? (data as any).session.testAnswers
+    : [];
+
+  const correct = data.stats?.correctCount ?? answers.filter((a) => a.isCorrect).length;
+  const total = data.stats?.totalAnswered ?? answers.length;
+  const percent =
+    data.stats?.progressPercent ?? (total > 0 ? Math.round((correct / total) * 100) : 0);
+  const mistakes = answers.filter((a) => a.isCorrect === false);
 
   return (
     <Screen scrollable>
@@ -96,23 +119,49 @@ export const SessionResultScreen = ({ route }: Props) => {
       {mistakes.length > 0 ? (
         <GlassCard style={{ marginTop: spacing.lg }}>
           <Text style={styles.sectionTitle}>Помилки</Text>
-          {mistakes.map((answer) => (
-            <View key={answer.questionId} style={styles.mistake}>
-              <Text style={styles.mistakeTitle}>
-                {answer.questionTitle ?? `Питання ${answer.questionId}`}
-              </Text>
-              {answer.correctAnswerText ? (
-                <Text style={styles.mistakeText}>
-                  Правильна: {answer.correctAnswerText}
-                </Text>
-              ) : null}
-              {answer.correctOptionIds ? (
-                <Text style={styles.mistakeText}>
-                  Правильні опції: {answer.correctOptionIds.join(', ')}
-                </Text>
-              ) : null}
-            </View>
-          ))}
+          {mistakes.map((answer: SessionTestAnswer) => {
+            const question = (answer as any).question;
+            const questionTitle =
+              typeof question?.title === 'string'
+                ? question.title
+                : `Питання ${normalizeId(answer.questionId)}`;
+            const questionType = question?.type as any;
+            const options = Array.isArray(question?.options) ? question.options : [];
+
+            const correctOptions = options.filter((o: any) => o?.isCorrect === true);
+            const correctText =
+              questionType === 'TEXT'
+                ? (typeof question?.answerText === 'string' ? question.answerText : null)
+                : correctOptions.length > 0
+                  ? correctOptions.map((o: any) => o?.text).filter(Boolean).join(', ')
+                  : null;
+
+            const selectedIds = normalizeSelectedIds((answer as any).selectedOptionIds);
+            const selectedText =
+              questionType === 'TEXT'
+                ? (typeof (answer as any).answerText === 'string' ? (answer as any).answerText : null)
+                : selectedIds.length > 0
+                  ? selectedIds
+                      .map((id) => {
+                        const idStr = String(id);
+                        return options.find((o: any) => String(o?.id) === idStr)?.text;
+                      })
+                      .filter(Boolean)
+                      .join(', ')
+                  : null;
+
+            return (
+              <View key={normalizeId(answer.id ?? answer.questionId)} style={styles.mistake}>
+                <Text style={styles.mistakeTitle}>{questionTitle}</Text>
+                {selectedText ? (
+                  <Text style={styles.mistakeText}>Твоя: {selectedText}</Text>
+                ) : null}
+                {correctText ? (
+                  <Text style={styles.mistakeText}>Правильна: {correctText}</Text>
+                ) : null}
+              </View>
+            );
+          })}
         </GlassCard>
       ) : (
         <GlassCard style={{ marginTop: spacing.lg }}>

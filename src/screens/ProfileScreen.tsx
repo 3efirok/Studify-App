@@ -67,7 +67,7 @@ export const ProfileScreen = () => {
           screen: 'FlashTestSession',
           params: {
             deckId,
-            sessionId: res.session.id,
+            sessionId: String(res.session.id),
             initialQuestion,
           },
         });
